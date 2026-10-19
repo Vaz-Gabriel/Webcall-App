@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebCord - Discord Clone</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = { darkMode: 'class', theme: { extend: { colors: { discord: { servers: '#202225', channels: '#2f3136', chat: '#36393f', input: '#40444b', blurple: '#5865F2', blurpleHover: '#4752C4', danger: '#ed4245', success: '#3ba55c' } } } } }
+    </script>
+    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+    <style>
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #2f3136; }
+        ::-webkit-scrollbar-thumb { background: #202225; border-radius: 4px; }
+        .channel-hover:hover .channel-actions { display: flex; }
+    </style>
+</head>
+<body class="bg-discord-chat text-gray-200 h-screen overflow-hidden flex font-sans text-sm">
+
+    <!-- Tela de Login -->
+    <div id="login-screen" class="absolute inset-0 bg-discord-chat z-50 flex items-center justify-center">
+        <div class="bg-discord-channels p-8 rounded-lg shadow-2xl w-96 text-center">
+            <h2 class="text-2xl font-bold mb-6 text-white" id="auth-title">Entrar no WebCord</h2>
+            <div class="space-y-4">
+                <input type="text" id="auth-name" placeholder="Nome de usuário" class="w-full bg-discord-servers text-white p-3 rounded outline-none hidden">
+                <input type="email" id="auth-email" placeholder="E-mail" class="w-full bg-discord-servers text-white p-3 rounded outline-none">
+                <input type="password" id="auth-pass" placeholder="Senha" class="w-full bg-discord-servers text-white p-3 rounded outline-none">
+                <button id="auth-btn" class="w-full bg-discord-blurple hover:bg-discord-blurpleHover text-white font-semibold py-3 px-4 rounded transition">Entrar</button>
+            </div>
+            <p id="auth-error" class="text-red-400 mt-3 hidden"></p>
+            <p class="mt-4 text-discord-blurple cursor-pointer hover:underline" id="toggle-auth">Precisa de uma conta? Registre-se</p>
+        </div>
+    </div>
+
+    <!-- Modal Criar/Editar Canal -->
+    <div id="channel-modal" class="absolute inset-0 bg-black bg-opacity-70 z-50 flex items-center justify-center hidden">
+        <div class="bg-discord-chat p-6 rounded-lg w-96 shadow-2xl border border-discord-servers">
+            <h3 class="text-white font-bold text-xl mb-4" id="modal-title">Criar Canal</h3>
+            <input type="hidden" id="modal-channel-id">
+            <input type="hidden" id="modal-channel-type">
+            <label class="text-xs font-bold text-gray-400 uppercase mb-2 block">Nome do Canal</label>
+            <input type="text" id="modal-channel-name" class="w-full bg-discord-servers text-white p-3 rounded outline-none mb-6 focus:ring-2 focus:ring-discord-blurple">
+            <div class="flex justify-end gap-3">
+                <button id="close-modal" class="text-gray-400 hover:text-white font-semibold px-4 py-2 rounded transition">Cancelar</button>
+                <button id="save-channel" class="bg-discord-blurple hover:bg-discord-blurpleHover text-white px-6 py-2 rounded font-semibold transition">Salvar</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="app-screen" class="flex w-full h-full hidden">
+        <!-- Servidores -->
+        <div class="w-[72px] bg-discord-servers flex flex-col items-center py-3 gap-3 z-20 overflow-y-auto">
+            <div class="w-12 h-12 bg-discord-blurple rounded-[16px] flex items-center justify-center cursor-pointer text-white font-bold text-xl">W</div>
+            <div class="w-8 h-[2px] bg-discord-channels rounded"></div>
+        </div>
+
+        <!-- Canais -->
+        <div class="w-60 bg-discord-channels flex flex-col z-10 border-r border-discord-servers">
+            <div class="h-12 border-b border-discord-servers flex items-center px-4 font-bold text-white shadow-sm hover:bg-discord-chat cursor-pointer">WebCord Global</div>
+            
+            <div class="flex-1 overflow-y-auto p-2 space-y-4 mt-2">
+                <!-- Canais de Texto -->
+                <div>
+                    <div class="flex justify-between items-center px-2 mb-1 group cursor-pointer" onclick="openChannelModal('text')">
+                        <h3 class="text-[11px] font-bold text-gray-400 uppercase">Canais de Texto</h3>
+                        <span class="text-gray-400 hover:text-white hidden group-hover:block" title="Criar Canal de Texto">+</span>
+                    </div>
+                    <div id="text-channels-list" class="space-y-1"></div>
+                </div>
+                
+                <!-- Canais de Voz -->
+                <div>
+                    <div class="flex justify-between items-center px-2 mb-1 group cursor-pointer" onclick="openChannelModal('voice')">
+                        <h3 class="text-[11px] font-bold text-gray-400 uppercase">Canais de Voz</h3>
+                        <span class="text-gray-400 hover:text-white hidden group-hover:block" title="Criar Canal de Voz">+</span>
+                    </div>
+                    <div id="voice-channels-list" class="space-y-1"></div>
+                </div>
+            </div>
+
+            <!-- Controles de Perfil e Call -->
+            <div class="bg-[#292b2f] flex flex-col">
+                <div id="voice-controls" class="p-2 border-b border-discord-servers hidden flex flex-col gap-2">
+                    <div class="text-discord-success text-xs font-bold flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-discord-success animate-pulse"></span> Voz Conectada</div>
+                    <div class="flex gap-2">
+                        <button id="share-screen" class="flex-1 bg-discord-input hover:bg-gray-600 text-white rounded p-1 text-xs transition">💻 Tela</button>
+                        <button id="disconnect-voice" class="flex-1 bg-discord-danger hover:bg-red-600 text-white rounded p-1 text-xs transition">Desconectar</button>
+                    </div>
+                </div>
+
+                <div class="p-2 flex items-center gap-2 relative">
+                    <img id="user-avatar" src="" class="w-8 h-8 rounded-full">
+                    <div class="flex-1 min-w-0 cursor-pointer group" id="copy-id-area" title="Clique para copiar sua ID">
+                        <div id="user-name" class="font-bold text-white text-[13px] truncate group-hover:text-discord-blurple transition">Usuário</div>
+                        <div class="text-[11px] text-gray-400 truncate flex items-center gap-1">
+                            <span id="my-peer-id">Conectando...</span>
+                        </div>
+                    </div>
+                    <button id="logout-btn" class="text-gray-400 hover:text-red-400" title="Sair do WebCord">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex-1 flex flex-col min-w-0 relative">
+            <div class="h-12 border-b border-discord-servers flex items-center px-4 shadow-sm z-10 bg-discord-chat">
+                <div class="flex items-center gap-2 text-white font-bold text-base">
+                    <span class="text-gray-400 text-xl font-light">#</span> <span id="current-channel-title">geral</span>
+                </div>
+            </div>
+
+            <!-- Grid de Vídeos da Call -->
+            <div id="call-container" class="bg-black flex-shrink-0 flex hidden relative border-b border-discord-servers">
+                <div id="video-grid" class="flex p-4 gap-4 justify-center items-center overflow-x-auto w-full min-h-[300px]"></div>
+                <div class="absolute top-2 right-2 text-xs text-gray-400 bg-black bg-opacity-50 px-2 py-1 rounded pointer-events-none">Duplo clique no vídeo para Tela Cheia</div>
+            </div>
+
+            <!-- Chat -->
+            <div class="flex-1 flex flex-col overflow-hidden relative">
+                <div id="messages" class="flex-1 overflow-y-auto p-4 space-y-4"></div>
+                
+                <div class="p-4 pt-0">
+                    <div class="bg-discord-input rounded-lg flex items-center px-4 py-3">
+                        <label for="file-input" class="cursor-pointer text-gray-400 hover:text-white mr-4 text-xl font-bold">+</label>
+                        <input type="file" id="file-input" class="hidden">
+                        <input type="text" id="message-input" placeholder="Conversar..." class="flex-1 bg-transparent border-none outline-none text-gray-200">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="app.js"></script>
+</body>
+</html>
